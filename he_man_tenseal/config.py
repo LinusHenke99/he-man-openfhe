@@ -6,6 +6,9 @@ import click
 from pydantic import BaseSettings
 
 
+#   Probably no changes here, since front end should basically stay the same
+
+
 class GlobalSettings(BaseSettings):
     pass
 
