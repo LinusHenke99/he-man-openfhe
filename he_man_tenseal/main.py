@@ -94,6 +94,7 @@ def decrypt(**kwargs: Any) -> None:
         raise click.ClickException(str(e))
 
 
+#   Does probably not require changes
 def run_keyparams(cfg: config.KeyParamsConfig) -> None:
     model = ONNXModel(cfg.model_path, cfg)
     key_params = crypto.find_optimal_parameters(cfg, model)
@@ -101,12 +102,14 @@ def run_keyparams(cfg: config.KeyParamsConfig) -> None:
     model.save_calibrated_model()
 
 
+#   Does probably not require changes
 def run_keygen(cfg: config.KeyGenConfig) -> None:
     key_params = crypto.KeyParams.load(cfg.key_params_path)
     context = crypto.create_context(key_params)
     crypto.save_context(context, cfg.secret_key_path)
 
 
+#   TODO:   Needs to be changed to fit OpenFHE 
 def run_encrypt(cfg: config.EncryptConfig) -> None:
     context = crypto.load_context(cfg.key_path)
     plaintext = np.load(cfg.plaintext_input_path)
@@ -114,6 +117,7 @@ def run_encrypt(cfg: config.EncryptConfig) -> None:
     crypto.save_vector(ciphertext, cfg.ciphertext_output_path)
 
 
+#   Does probably not require changes
 def run_inference(cfg: config.InferenceConfig) -> None:
     model = ONNXModel(cfg.model_path)
     context = crypto.load_context(cfg.key_path)
@@ -122,6 +126,7 @@ def run_inference(cfg: config.InferenceConfig) -> None:
     crypto.save_vector(output, cfg.ciphertext_output_path)
 
 
+#   TODO:   Needs to be changed to fit OpenFHE 
 def run_decrypt(cfg: config.DecryptConfig) -> None:
     context = crypto.load_context(cfg.key_path)
     ciphertext = crypto.load_vector(context, cfg.ciphertext_input_path)
