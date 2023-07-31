@@ -62,6 +62,7 @@ class TensorMetaInfo:
     domain: Optional[Interval] = None
 
 
+#   TODO:   Change tenseal specific code, and add bridge between onnx and neuralofhe
 class ONNXModel:
     def __init__(
         self,
@@ -355,6 +356,8 @@ class ONNXModel:
         max_abs_value = max(abs(self.domain_min), abs(self.domain_max))
         return int(np.log2(max_abs_value) + 1)
 
+    #   TODO:   Implement factories for every derived class in order to generate 
+    #           neuralofhe Operator objects
     class Operator:
         def __init__(self, model: "ONNXModel", node: onnx.onnx_ml_pb2.NodeProto):
             self.model = model
@@ -377,6 +380,10 @@ class ONNXModel:
             return self.node.output[0]
 
         def execute(self, state: Dict[str, Union[ts.CKKSVector, np.ndarray]]) -> None:
+            raise NotImplementedError("TODO: Implement in derived operator classes")
+
+        #   Factory for creating neuralofhe operator objects
+        def create_neuralofhe_object(self):
             raise NotImplementedError("TODO: Implement in derived operator classes")
 
     class GemmWrappedOperator(Operator):
@@ -519,6 +526,8 @@ class ONNXModel:
                     "may be encrypted."
                 )
 
+        #   TODO:   This needs to be changed in order to fit the neuralofhe 
+        #           library
         def execute(self, state: Dict[str, Union[ts.CKKSVector, np.ndarray]]) -> None:
             self.assert_inputs(state)
 
