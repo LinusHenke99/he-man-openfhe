@@ -22,6 +22,8 @@ _MAX_BIT_SIZE_SUM_BY_POLY_MODULUS_DEGREE = {
 }
 
 
+#   This will not be changed, since OpenFHE parameters can be extracted from Tenseal parameters.
+#   OpenFHE implementation will be implemented for context factory
 @dataclass
 class KeyParams:
     poly_modulus_degree: int
@@ -39,6 +41,7 @@ class KeyParams:
         return KeyParams(**obj["parameters"])
 
 
+#   TODO:   Rewrite context factory to work with the afformentioned KeyParams class for OpenFHE
 def create_context(key_params: KeyParams) -> ts.Context:
     context = ts.context(
         ts.SCHEME_TYPE.CKKS,
@@ -50,6 +53,7 @@ def create_context(key_params: KeyParams) -> ts.Context:
     return context
 
 
+#   TODO:   Might need tweeking in order to fit OpenFHE standards
 def find_min_poly_modulus_degree(cfg: KeyParamsConfig, model: ONNXModel) -> int:
     """Finds the minimal possible poly modulus degree for the given keyparameter config.
 
@@ -84,6 +88,7 @@ def find_min_poly_modulus_degree(cfg: KeyParamsConfig, model: ONNXModel) -> int:
     return poly_modulus_degree
 
 
+#   TODO:   Tweeking
 def find_max_precision(
     cfg: KeyParamsConfig, model: ONNXModel, poly_modulus_degree: int
 ) -> Tuple[int, int]:
@@ -128,6 +133,7 @@ def find_max_precision(
     return n_bits_int_precision, n_bits_fractional_precision
 
 
+#   Probably enough if the other functions are being fixed to fit OpenFHE. Probably no changes here
 def find_optimal_parameters(cfg: KeyParamsConfig, model: ONNXModel) -> KeyParams:
     """Find the optimal set of key parameters for a given config.
 
@@ -159,6 +165,7 @@ def find_optimal_parameters(cfg: KeyParamsConfig, model: ONNXModel) -> KeyParams
     return KeyParams(poly_modulus_degree, coeff_mod_bit_sizes)
 
 
+#   TODO: Use neuralpy methods here
 def save_context(context: ts.Context, path: Path) -> None:
     """Saves a TenSEAL context including the secret key into the specified file and
     into another file (with an additional suffix ".pub") without the secret key.
@@ -174,6 +181,7 @@ def save_context(context: ts.Context, path: Path) -> None:
         output_file.write(context.serialize(save_secret_key=False))
 
 
+#   TODO: Use neuralpy methods here
 def load_context(path: Path) -> ts.Context:
     """Loads a TenSEAL context from specified file.
 
@@ -187,6 +195,7 @@ def load_context(path: Path) -> ts.Context:
         return ts.Context.load(input_file.read())
 
 
+#   TODO: Use neuralpy methods here
 def save_vector(vector: ts.CKKSVector, path: Path) -> None:
     """Saves a CKKS vector into the specified file.
 
@@ -198,6 +207,7 @@ def save_vector(vector: ts.CKKSVector, path: Path) -> None:
         output_file.write(vector.serialize())
 
 
+#   TODO: Use neuralpy methods here
 def load_vector(context: ts.Context, path: Path) -> ts.CKKSVector:
     """Loads a CKKS vector from the specified file.
 
