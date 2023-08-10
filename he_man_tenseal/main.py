@@ -3,7 +3,6 @@ from typing import Any, Callable
 
 import click
 import numpy as np
-import tenseal as ts
 from loguru import logger
 
 import neuralpy
@@ -112,7 +111,7 @@ def run_keygen(cfg: config.KeyGenConfig) -> None:
 
 
 def run_encrypt(cfg: config.EncryptConfig) -> None:
-    context = crypto.load_context(cfg.key_path)
+    context = crypto.load_context(cfg.key_path, operation=False)
     plaintext = np.load(cfg.plaintext_input_path)
     plaintext = list(plaintext.flat)
     input_size = len(plaintext)
@@ -133,7 +132,7 @@ def run_inference(cfg: config.InferenceConfig) -> None:
 
 
 def run_decrypt(cfg: config.DecryptConfig) -> None:
-    context = crypto.load_context(cfg.key_path)
+    context = crypto.load_context(cfg.key_path, operation=False)
     if not context.private_key:
         raise ValueError("No private key available in {}".format(str(cfg.key_path)))
 

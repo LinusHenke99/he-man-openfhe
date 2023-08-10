@@ -848,7 +848,22 @@ class ONNXModel:
             self.relu_mode = relu_mode
 
             # plus one for the coefficient multiplication
-            relu_multiplications = floor(log2(self.degree)) + 1
+            def get_mult_depth(degree: int) -> int:
+                if degree < 3:
+                    raise ValueError("Polynomial degree is to low, has to be at least 3.")
+
+                depths = {
+                    5: 4,
+                    13: 5,
+                    27: 6,
+                    59: 7
+                }
+
+                for key, value in depths.items():
+                    if degree <= key:
+                        return value
+
+            relu_multiplications = get_mult_depth(self.degree) + 1
 
             multiplication_depth = relu_multiplications + max(
                 i.multiplication_depth for i in self.meta_info_inputs

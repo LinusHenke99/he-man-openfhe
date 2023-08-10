@@ -10,7 +10,6 @@ from os import listdir
 from os import mkdir
 from enum import Enum
 
-import tenseal as ts
 from loguru import logger
 
 from he_man_tenseal.inference import ONNXModel
@@ -75,7 +74,7 @@ class ContextAndKeys:
             self.private_key.save(str(path / Loadables.privKey.value))
 
     @staticmethod
-    def load(path: Path) -> "ContextAndKeys":
+    def load(path: Path, operation: bool = True) -> "ContextAndKeys":
         if not path.exists():
             raise ValueError("Path {} does not exist".format(str(path)))
 
@@ -96,8 +95,9 @@ class ContextAndKeys:
 
         context = neuralpy.Context()
         context.load(str(path / Loadables.context.value))
-        context.loadMultKeys(str(path / Loadables.multKey.value))
-        context.loadRotKeys(str(path / Loadables.rotKey.value))
+        if operation:
+            context.loadMultKeys(str(path / Loadables.multKey.value))
+            context.loadRotKeys(str(path / Loadables.rotKey.value))
 
         publicKey = neuralpy.PublicKey()
         publicKey.load(str(path / Loadables.pubKey.value))
@@ -285,7 +285,7 @@ def save_context(context: ContextAndKeys, path: Path) -> None:
     mkdir(path / "public")
     context_copy.save(path / "public")
 
-def load_context(path: Path) -> ContextAndKeys:
+def load_context(path: Path, operation: bool = True) -> ContextAndKeys:
     """Loads a TenSEAL context from specified file.
 
     Args:
@@ -294,7 +294,7 @@ def load_context(path: Path) -> ContextAndKeys:
     Returns:
         ts.Context: The loaded TenSEAL context.
     """
-    context_and_keys = ContextAndKeys.load(path)
+    context_and_keys = ContextAndKeys.load(path, operation=operation)
 
     return context_and_keys
 
