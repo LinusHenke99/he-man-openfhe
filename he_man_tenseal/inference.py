@@ -9,13 +9,14 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 import numpy as np
 import onnx
 import onnxruntime
-import tenseal as ts
 from jsonschema import validate
 from loguru import logger
 from onnx import TensorProto, helper, numpy_helper
 from onnx.onnx_pb import StringStringEntryProto
 
 from he_man_tenseal.config import KeyParamsConfig
+
+import neuralpy
 
 OPSET_VERSION = 14
 
@@ -186,14 +187,15 @@ class ONNXModel:
         )
 
     def __call__(
-        self, *inputs: List[Union[ts.CKKSVector, np.ndarray]]
-    ) -> List[Union[ts.CKKSVector, np.ndarray]]:
+        self, *inputs: List[Union[neuralpy.Ciphertext, np.ndarray]]
+    ) -> List[Union[neuralpy.Ciphertext, np.ndarray]]:
         state = self._forward(*inputs)
         return [state[output.name] for output in self.outputs]
 
+    #   TODO:   Needs to be changed for OpenFHE inference session.
     def _forward(
-        self, *inputs: List[Union[ts.CKKSVector, np.ndarray]]
-    ) -> Dict[str, Union[ts.CKKSVector, np.ndarray]]:
+        self, *inputs: List[Union[neuralpy.Ciphertext, np.ndarray]]
+    ) -> Dict[str, Union[neuralpy.Ciphertext, np.ndarray]]:
         if len(inputs) != self.n_inputs:
             raise ValueError(
                 f"Invalid number of inputs (expected {self.n_inputs}, but got "
@@ -216,8 +218,8 @@ class ONNXModel:
         return state
 
     def get_state(
-        self, *inputs: List[Union[ts.CKKSVector, np.ndarray]]
-    ) -> Dict[str, Union[ts.CKKSVector, np.ndarray]]:
+        self, *inputs: List[Union[neuralpy.Ciphertext, np.ndarray]]
+    ) -> Dict[str, Union[neuralpy.Ciphertext, np.ndarray]]:
         state = self._forward(*inputs)
         result = {
             name: value
@@ -356,8 +358,6 @@ class ONNXModel:
         max_abs_value = max(abs(self.domain_min), abs(self.domain_max))
         return int(np.log2(max_abs_value) + 1)
 
-    #   TODO:   Implement factories for every derived class in order to generate 
-    #           neuralofhe Operator objects
     class Operator:
         def __init__(self, model: "ONNXModel", node: onnx.onnx_ml_pb2.NodeProto):
             self.model = model
@@ -379,11 +379,11 @@ class ONNXModel:
         def output(self) -> str:
             return self.node.output[0]
 
-        def execute(self, state: Dict[str, Union[ts.CKKSVector, np.ndarray]]) -> None:
+        def execute(self, state: Dict[str, Union[neuralpy.Ciphertext, np.ndarray]]) -> None:
             raise NotImplementedError("TODO: Implement in derived operator classes")
 
         #   Factory for creating neuralofhe operator objects
-        def create_neuralofhe_object(self):
+        def create_neuralofhe_object(self, state: Dict[str, Union[neuralpy.Ciphertext, np.ndarray]]) -> neuralpy.Operator:
             raise NotImplementedError("TODO: Implement in derived operator classes")
 
     class GemmWrappedOperator(Operator):
@@ -489,7 +489,7 @@ class ONNXModel:
             )
 
         def get_gemm_weights_and_bias(
-            self, state: Dict[str, Union[ts.CKKSVector, np.ndarray]]
+            self, state: Dict[str, Union[neuralpy.Ciphertext, np.ndarray]]
         ) -> Tuple[np.ndarray, np.ndarray]:
             gemm_input_name = self.inputs[self.gemm_input_index]
             common_inputs = {
@@ -514,7 +514,7 @@ class ONNXModel:
             return weights, bias.ravel()
 
         def assert_inputs(
-            self, state: Dict[str, Union[ts.CKKSVector, np.ndarray]]
+            self, state: Dict[str, Union[neuralpy.Ciphertext, np.ndarray]]
         ) -> None:
             if any(
                 not isinstance(state[input_name], np.ndarray)
@@ -526,9 +526,7 @@ class ONNXModel:
                     "may be encrypted."
                 )
 
-        #   TODO:   This needs to be changed in order to fit the neuralofhe 
-        #           library
-        def execute(self, state: Dict[str, Union[ts.CKKSVector, np.ndarray]]) -> None:
+        def execute(self, state: Dict[str, Union[neuralpy.Ciphertext, np.ndarray]]) -> None:
             self.assert_inputs(state)
 
             x = state[self.inputs[self.gemm_input_index]]
@@ -536,11 +534,8 @@ class ONNXModel:
                 inputs = {input: state[input] for input in self.inputs}
                 state[self.output] = self.run_node_inference(inputs)
             else:
-                weights, bias = self.get_gemm_weights_and_bias(state)
-                result = x @ weights
-
-                if np.any(bias != 0):
-                    result += bias
+                cipher_operator = self.create_neuralofhe_object(state)
+                result = cipher_operator(x)
 
                 state[self.output] = result
 
@@ -563,13 +558,33 @@ class ONNXModel:
                 ),
             )
 
-        def execute(self, state: Dict[str, Union[ts.CKKSVector, np.ndarray]]) -> None:
+        def execute(self, state: Dict[str, Union[neuralpy.Ciphertext, np.ndarray]]) -> None:
             a = _unwrap_scalar(state[self.inputs[0]])
             b = _unwrap_scalar(state[self.inputs[1]])
-            state[self.output] = a + b
+
+            if any(isinstance(x, neuralpy.Ciphertext) for x in (a, b)):
+                try:
+                    context = neuralpy.GetContext(a)
+
+                    state[self.output] = context.EvalAdd(b, a)
+
+                except TypeError:
+                    context = neuralpy.GetContext(b)
+
+                    state[self.output] = context.EvalAdd(a, b)
+
+            else:
+                state[self.output] = a + b
+
+        def create_neuralofhe_object(self, state: Dict[str, Union[neuralpy.Ciphertext, np.ndarray]]) -> neuralpy.Operator:
+            pass
 
     class AveragePoolOperator(GemmWrappedOperator):
-        pass
+        def create_neuralofhe_object(self, state: Dict[str, Union[neuralpy.Ciphertext, np.ndarray]]) -> neuralpy.Operator:
+            weights, _ = self.get_gemm_weights_and_bias(state)
+            averagePool = neuralpy.AveragePool(weights)
+
+            return averagePool
 
     class ConstantOperator(Operator):
         def __init__(self, model: "ONNXModel", node: onnx.onnx_ml_pb2.NodeProto):
@@ -604,11 +619,15 @@ class ONNXModel:
 
             self.model._const_state[self.output] = self.const
 
-        def execute(self, state: Dict[str, Union[ts.CKKSVector, np.ndarray]]) -> None:
+        def execute(self, state: Dict[str, Union[neuralpy.Ciphertext, np.ndarray]]) -> None:
             state[self.output] = self.const
 
     class ConvOperator(GemmWrappedOperator):
-        pass
+        def create_neuralofhe_object(self, state: Dict[str, Union[neuralpy.Ciphertext, np.ndarray]]) -> neuralpy.Operator:
+            weights, biases = self.get_gemm_weights_and_bias(state)
+            convolution = neuralpy.Conv2D(weights, biases)
+
+            return convolution
 
     class FlattenOperator(Operator):
         def __init__(self, model: "ONNXModel", node: onnx.onnx_ml_pb2.NodeProto):
@@ -621,7 +640,7 @@ class ONNXModel:
                 can_be_encrypted=self.meta_info_inputs[0].can_be_encrypted,
             )
 
-        def execute(self, state: Dict[str, Union[ts.CKKSVector, np.ndarray]]) -> None:
+        def execute(self, state: Dict[str, Union[neuralpy.Ciphertext, np.ndarray]]) -> None:
             x = state[self.inputs[0]]
             if isinstance(x, np.ndarray):
                 axis = a.i if (a := self.attributes.get("axis")) is not None else 1
@@ -668,19 +687,19 @@ class ONNXModel:
                 ),
             )
 
-        def execute(self, state: Dict[str, Union[ts.CKKSVector, np.ndarray]]) -> None:
+        def execute(self, state: Dict[str, Union[neuralpy.Ciphertext, np.ndarray]]) -> None:
             a = state[self.inputs[0]]
             b = state[self.inputs[1]]
 
             if self.trans_a:
-                if isinstance(a, ts.CKKSVector):
+                if isinstance(a, neuralpy.Ciphertext):
                     raise NotImplementedError(
                         "Transpose not implemented for CKKSVector"
                     )
                 a = a.T
 
             if self.trans_b:
-                if isinstance(b, ts.CKKSVector):
+                if isinstance(b, neuralpy.Ciphertext):
                     raise NotImplementedError(
                         "Transpose not implemented for CKKSVector"
                     )
@@ -689,16 +708,26 @@ class ONNXModel:
             if (attribute := self.attributes.get("alpha")) is not None:
                 b = b * attribute.f
 
-            result = a @ b
-
             if len(self.inputs) == 3:
                 c = state[self.inputs[2]]
                 if (attribute := self.attributes.get("beta")) is not None:
                     c = c * attribute.f
+            
+            else:
+                c = np.zeros(b.shape[0])
+
+            if isinstance(a, np.ndarray):
+                result = a @ b
+
                 result = result + c
+
+            else:
+                gemm_operator = neuralpy.Gemm(b, c)
+                result = gemm_operator(a)
 
             state[self.output] = result
 
+    #   TODO
     class MatMulOperator(Operator):
         def __init__(self, model: "ONNXModel", node: onnx.onnx_ml_pb2.NodeProto):
             super().__init__(model, node)
@@ -721,7 +750,7 @@ class ONNXModel:
                 ),
             )
 
-        def execute(self, state: Dict[str, Union[ts.CKKSVector, np.ndarray]]) -> None:
+        def execute(self, state: Dict[str, Union[neuralpy.Ciphertext, np.ndarray]]) -> None:
             state[self.output] = state[self.inputs[0]] @ state[self.inputs[1]]
 
     class MulOperator(Operator):
@@ -743,10 +772,25 @@ class ONNXModel:
                 ),
             )
 
-        def execute(self, state: Dict[str, Union[ts.CKKSVector, np.ndarray]]) -> None:
+        def execute(self, state: Dict[str, Union[neuralpy.Ciphertext, np.ndarray]]) -> None:
             a = _unwrap_scalar(state[self.inputs[0]])
             b = _unwrap_scalar(state[self.inputs[1]])
-            state[self.output] = a * b
+            if any(isinstance(x, neuralpy.Ciphertext) for x in (a, b)):
+                try:
+                    context = neuralpy.GetContext(b)
+
+                    state[self.output] = context.EvalMult(a, b)
+
+                except TypeError:
+                    context = neuralpy.GetContext(a)
+
+                    state[self.output] = context.EvalMult(b, a)
+
+            else:
+                state[self.output] = a * b
+
+        def create_neuralofhe_object(self, state: Dict[str, Union[neuralpy.Ciphertext, np.ndarray]]) -> neuralpy.Operator:
+            pass
 
     # PadOperator would waste a multiplication if we just derive it from GemmWrapped
     # without overwriting init_multiplication_depth and execute
@@ -771,11 +815,17 @@ class ONNXModel:
                 else 1
             )
 
-        def execute(self, state: Dict[str, Union[ts.CKKSVector, np.ndarray]]) -> None:
+        def execute(self, state: Dict[str, Union[neuralpy.Ciphertext, np.ndarray]]) -> None:
             if all(pad == 0 for pad in self.pads):
                 state[self.output] = state[self.inputs[0]]
             else:
                 super().execute(state)
+
+        def create_neuralofhe_object(self, state: Dict[str, Union[neuralpy.Ciphertext, np.ndarray]]) -> neuralpy.Operator:
+            weights, _ = self.get_gemm_weights_and_bias(state)
+            pad_operator = neuralpy.PadOperator(weights)
+
+            return pad_operator
 
     class ReluOperator(Operator):
         def __init__(self, model: "ONNXModel", node: onnx.onnx_ml_pb2.NodeProto):
@@ -832,27 +882,36 @@ class ONNXModel:
 
             return coeffs
 
-        def execute(self, state: Dict[str, Union[ts.CKKSVector, np.ndarray]]) -> None:
+        def execute(self, state: Dict[str, Union[neuralpy.Ciphertext, np.ndarray]]) -> None:
             x = state[self.inputs[0]]
 
             if self.meta_info_inputs[0].domain is not None:
-                domain = self.meta_info_inputs[0].domain
+                pass
             elif isinstance(x, np.ndarray):
                 # calibration case
                 domain = Interval(np.amin(x), np.amax(x))
+                coeffs = self._compute_polynomial_coeffs(domain)
             else:
                 raise ValueError(
                     "ReLU requires a calibrated model for encrypted inference."
                 )
 
-            coeffs = self._compute_polynomial_coeffs(domain)
-
             if isinstance(x, np.ndarray):
                 y = np.polyval(coeffs, x)
             else:
-                y = x.polyval(coeffs[::-1])
+                relu = self.create_neuralofhe_object(state)
+                y = relu(x)
 
             state[self.output] = y
+        
+        def create_neuralofhe_object(self, state: Dict[str, Union[neuralpy.Ciphertext, np.ndarray]]) -> neuralpy.Operator:
+            domain = self.meta_info_inputs[0].domain
+            lower = domain.lower_bound
+            upper = domain.upper_bound
+            poly_deg = self.degree
+            relu = neuralpy.ReLU(lower, upper, poly_deg)
+
+            return relu
 
     class ReshapeOperator(Operator):
         def __init__(self, model: "ONNXModel", node: onnx.onnx_ml_pb2.NodeProto):
@@ -894,12 +953,15 @@ class ONNXModel:
                 can_be_encrypted=self.meta_info_inputs[0].can_be_encrypted,
             )
 
-        def execute(self, state: Dict[str, Union[ts.CKKSVector, np.ndarray]]) -> None:
+        def execute(self, state: Dict[str, Union[neuralpy.Ciphertext, np.ndarray]]) -> None:
             x = state[self.inputs[0]]
-            if isinstance(x, ts.CKKSVector):
+            if isinstance(x, neuralpy.Ciphertext):
                 state[self.output] = x
             else:
                 state[self.output] = x.reshape(self.target_shape)
+
+        def create_neuralofhe_object(self, state: Dict[str, Union[neuralpy.Ciphertext, np.ndarray]]) -> neuralpy.Operator:
+            pass
 
     class SubOperator(Operator):
         def __init__(self, model: "ONNXModel", node: onnx.onnx_ml_pb2.NodeProto):
@@ -915,10 +977,25 @@ class ONNXModel:
                 can_be_encrypted=True,
             )
 
-        def execute(self, state: Dict[str, Union[ts.CKKSVector, np.ndarray]]) -> None:
+        def execute(self, state: Dict[str, Union[neuralpy.Ciphertext, np.ndarray]]) -> None:
             a = _unwrap_scalar(state[self.inputs[0]])
             b = _unwrap_scalar(state[self.inputs[1]])
-            state[self.output] = a - b
+            if any(isinstance(x, neuralpy.Ciphertext) for x in (a, b)):
+                try:
+                    context = neuralpy.GetContext(b)
+
+                    state[self.output] = context.EvalSub(a, b)
+
+                except TypeError:
+                    context = neuralpy.GetContext(a)
+
+                    state[self.output] = context.EvalSub(b, a, reverse=True)
+
+            else:
+                state[self.output] = a - b
+
+        def create_neuralofhe_object(self, state: Dict[str, Union[neuralpy.Ciphertext, np.ndarray]]) -> neuralpy.Operator:
+            pass
 
     # START: CLEARTEXT ONLY ###
 
@@ -936,13 +1013,16 @@ class ONNXModel:
                 can_be_encrypted=True,
             )
 
-        def execute(self, state: Dict[str, Union[ts.CKKSVector, np.ndarray]]) -> None:
+        def execute(self, state: Dict[str, Union[neuralpy.Ciphertext, np.ndarray]]) -> None:
             a = _unwrap_scalar(state[self.inputs[0]])
             b = _unwrap_scalar(state[self.inputs[1]])
-            if any(isinstance(x, ts.CKKSVector) for x in (a, b)):
+            if any(isinstance(x, neuralpy.Ciphertext) for x in (a, b)):
                 raise NotImplementedError("DivOperator not implemented for CKKSVector")
 
             state[self.output] = a / b
+
+        def create_neuralofhe_object(self, state: Dict[str, Union[neuralpy.Ciphertext, np.ndarray]]) -> neuralpy.Operator:
+            pass
 
     class BatchNormalizationOperator(Operator):
         def __init__(self, model: "ONNXModel", node: onnx.onnx_ml_pb2.NodeProto):
@@ -956,9 +1036,9 @@ class ONNXModel:
                 can_be_encrypted=True,
             )
 
-        def execute(self, state: Dict[str, Union[ts.CKKSVector, np.ndarray]]) -> None:
+        def execute(self, state: Dict[str, Union[neuralpy.Ciphertext, np.ndarray]]) -> None:
             X = state[self.inputs[0]]
-            if isinstance(X, ts.CKKSVector):
+            if isinstance(X, neuralpy.Ciphertext):
                 raise NotImplementedError(
                     "BatchNormalizationOperator not implemented for CKKSVector"
                 )
@@ -979,6 +1059,9 @@ class ONNXModel:
             Y = (X - input_mean) / np.sqrt(input_var + epsilon) * scale + B
 
             state[self.output] = Y
+
+        def create_neuralofhe_object(self, state: Dict[str, Union[neuralpy.Ciphertext, np.ndarray]]) -> neuralpy.Operator:
+            pass
 
 
 def _unwrap_scalar(x: Any) -> Any:

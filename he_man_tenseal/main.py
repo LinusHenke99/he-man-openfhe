@@ -5,10 +5,12 @@ import click
 import numpy as np
 import tenseal as ts
 from loguru import logger
-from pydantic import BaseSettings
+
+import neuralpy
 
 from he_man_tenseal import config, crypto
 from he_man_tenseal.inference import ONNXModel
+from pydantic_settings import BaseSettings
 
 
 def config_args(cfg_class: BaseSettings) -> Callable:
@@ -109,26 +111,35 @@ def run_keygen(cfg: config.KeyGenConfig) -> None:
     crypto.save_context(context, cfg.secret_key_path)
 
 
-#   TODO:   Needs to be changed to fit OpenFHE 
 def run_encrypt(cfg: config.EncryptConfig) -> None:
     context = crypto.load_context(cfg.key_path)
     plaintext = np.load(cfg.plaintext_input_path)
-    ciphertext = ts.ckks_vector(context, plaintext.ravel())
+    plaintext = list(plaintext.flat)
+    input_size = len(plaintext)
+    pl = context.context.PackPlaintext(plaintext)
+    ciphertext = context.context.Encrypt(pl, context.public_key)
+    ciphertext.setSlots(input_size)
     crypto.save_vector(ciphertext, cfg.ciphertext_output_path)
 
 
-#   Does probably not require changes
+#   TODO:   Context deserialization needs to be handled here
 def run_inference(cfg: config.InferenceConfig) -> None:
     model = ONNXModel(cfg.model_path)
     context = crypto.load_context(cfg.key_path)
-    input = crypto.load_vector(context, cfg.ciphertext_input_path)
+    neuralpy.SetContext(context.context)
+    input = crypto.load_vector(cfg.ciphertext_input_path)
     output = model(input)[0]
     crypto.save_vector(output, cfg.ciphertext_output_path)
 
 
-#   TODO:   Needs to be changed to fit OpenFHE 
 def run_decrypt(cfg: config.DecryptConfig) -> None:
     context = crypto.load_context(cfg.key_path)
-    ciphertext = crypto.load_vector(context, cfg.ciphertext_input_path)
-    plaintext = ciphertext.decrypt()
+    if not context.private_key:
+        raise ValueError("No private key available in {}".format(str(cfg.key_path)))
+
+    ciphertext = crypto.load_vector(cfg.ciphertext_input_path)
+    output_size = ciphertext.getSlots()
+    plaintext = context.context.Decrypt(ciphertext, context.private_key)
+    plaintext.SetLength(output_size)
+    plaintext = np.array(plaintext.GetPackedValue())
     np.save(cfg.plaintext_output_path, plaintext)

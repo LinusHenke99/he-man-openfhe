@@ -3,7 +3,7 @@ from pathlib import Path
 from typing import Callable, Optional
 
 import click
-from pydantic import BaseSettings
+from pydantic_settings import BaseSettings
 
 
 #   Probably no changes here, since front end should basically stay the same

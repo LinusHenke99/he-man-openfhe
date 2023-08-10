@@ -1,8 +1,14 @@
 import dataclasses
+import neuralpy
 import json
 from dataclasses import dataclass
 from pathlib import Path
 from typing import List, Tuple
+
+from os.path import isdir
+from os import listdir
+from os import mkdir
+from enum import Enum
 
 import tenseal as ts
 from loguru import logger
@@ -19,6 +25,18 @@ _MAX_BIT_SIZE_SUM_BY_POLY_MODULUS_DEGREE = {
     8192: 218,
     16384: 438,
     32768: 881,
+}
+
+class Loadables(Enum):
+    privKey = "privateKey"
+    pubKey = "publicKey"
+    context = "context"
+    multKey = "multKeys"
+    rotKey = "rotKeys"
+
+_FILE_SETS = {
+    "private": set([loadable.value for loadable in Loadables]),
+    "public": set([loadable.value for loadable in Loadables if not loadable == Loadables.privKey])
 }
 
 
@@ -39,21 +57,96 @@ class KeyParams:
         with open(path, "r") as input_file:
             obj = json.load(input_file)
         return KeyParams(**obj["parameters"])
+    
 
+@dataclass
+class ContextAndKeys:
+    context: neuralpy.Context
+    private_key: neuralpy.PrivateKey
+    public_key: neuralpy.PublicKey
 
-#   TODO:   Rewrite context factory to work with the afformentioned KeyParams class for OpenFHE
-def create_context(key_params: KeyParams) -> ts.Context:
-    context = ts.context(
-        ts.SCHEME_TYPE.CKKS,
-        poly_modulus_degree=key_params.poly_modulus_degree,
-        coeff_mod_bit_sizes=key_params.coeff_mod_bit_sizes,
+    def save(self, path: Path) -> None:
+        self.context.save(str(path / Loadables.context.value))
+        self.context.saveMultKeys(str(path / Loadables.multKey.value))
+        self.context.saveRotKeys(str(path / Loadables.rotKey.value))
+        self.public_key.save(str(path / Loadables.pubKey.value))
+
+        if self.private_key:
+            self.private_key.save(str(path / Loadables.privKey.value))
+
+    @staticmethod
+    def load(path: Path) -> "ContextAndKeys":
+        if not path.exists():
+            raise ValueError("Path {} does not exist".format(str(path)))
+
+        elif not isdir(path):
+            raise ValueError("Path {} does not point to a directory.".format(str(path)))
+
+        dirlist = listdir(path)
+
+        privateKey = None
+
+        if set(dirlist) == _FILE_SETS["private"]:
+            privateKey = neuralpy.PrivateKey()
+            privateKey.load(str(path / Loadables.privKey.value))
+
+        elif set(dirlist) != _FILE_SETS["public"]:
+            raise ValueError("{} needs to at least contain files {} in order to load context."
+                             .format(path, _FILE_SETS["public"]))
+
+        context = neuralpy.Context()
+        context.load(str(path / Loadables.context.value))
+        context.loadMultKeys(str(path / Loadables.multKey.value))
+        context.loadRotKeys(str(path / Loadables.rotKey.value))
+
+        publicKey = neuralpy.PublicKey()
+        publicKey.load(str(path / Loadables.pubKey.value))
+
+        context_with_keys = ContextAndKeys(
+            context=context,
+            private_key=privateKey,
+            public_key=publicKey
+        )
+
+        return context_with_keys
+
+def create_context(key_params: KeyParams) -> ContextAndKeys:
+    first_mod_size = key_params.coeff_mod_bit_sizes[0]
+    mod_size = key_params.coeff_mod_bit_sizes[1]
+    mult_depth = len(key_params.coeff_mod_bit_sizes) - 2
+    ring_dim = key_params.poly_modulus_degree
+    batch_size = key_params.poly_modulus_degree // 2
+
+    parameters = neuralpy.Parameters()
+    parameters.SetRingDim(ring_dim)
+    parameters.SetScalingModSize(mod_size)
+    parameters.SetFirstModSize(first_mod_size)
+    parameters.SetSecurityLevel(neuralpy.HEStd_NotSet)
+    parameters.SetBatchSize(batch_size)
+    parameters.SetMultiplicativeDepth(mult_depth)
+
+    context = neuralpy.MakeContext(parameters)
+
+    context.Enable(neuralpy.PKE)
+    context.Enable(neuralpy.LEVELEDSHE)
+    context.Enable(neuralpy.KEYSWITCH)
+    context.Enable(neuralpy.ADVANCEDSHE)
+
+    keypair = context.KeyGen()
+
+    context.EvalMultKeyGen(keypair.privateKey)
+    context.GenRotateKeys(keypair.privateKey)
+
+    context_struct = ContextAndKeys(
+        context=context,
+        private_key=keypair.privateKey,
+        public_key=keypair.publicKey
     )
-    context.generate_galois_keys()
-    context.global_scale = 2 ** key_params.coeff_mod_bit_sizes[-2]
-    return context
+
+    return context_struct
 
 
-#   TODO:   Might need tweeking in order to fit OpenFHE standards
+#   TODO:   Might need tweaking in order to fit OpenFHE standards
 def find_min_poly_modulus_degree(cfg: KeyParamsConfig, model: ONNXModel) -> int:
     """Finds the minimal possible poly modulus degree for the given keyparameter config.
 
@@ -88,7 +181,7 @@ def find_min_poly_modulus_degree(cfg: KeyParamsConfig, model: ONNXModel) -> int:
     return poly_modulus_degree
 
 
-#   TODO:   Tweeking
+#   TODO:   Tweaking
 def find_max_precision(
     cfg: KeyParamsConfig, model: ONNXModel, poly_modulus_degree: int
 ) -> Tuple[int, int]:
@@ -164,25 +257,35 @@ def find_optimal_parameters(cfg: KeyParamsConfig, model: ONNXModel) -> KeyParams
 
     return KeyParams(poly_modulus_degree, coeff_mod_bit_sizes)
 
-
-#   TODO: Use neuralpy methods here
-def save_context(context: ts.Context, path: Path) -> None:
-    """Saves a TenSEAL context including the secret key into the specified file and
-    into another file (with an additional suffix ".pub") without the secret key.
+def save_context(context: ContextAndKeys, path: Path) -> None:
+    """ Creates two folders in the path, a private and a public folder, where all
+        necessary files are stored.
 
     Args:
-        context (ts.Context): The TenSEAL context to save.
-        path (str): Path for storing the context including the secret key.
+        context (ContextAndKeys): Data object containing keys and context.
+        path (str): Path to folder for storing keys and context.
     """
-    with open(path, "wb") as output_file:
-        output_file.write(context.serialize(save_secret_key=True))
+    if not path.exists():
+        raise ValueError("Path {} does not exist".format(str(path)))
 
-    with open(f"{path}.pub", "wb") as output_file:
-        output_file.write(context.serialize(save_secret_key=False))
+    elif not isdir(path):
+        raise ValueError("Path {} does not point to a directory.".format(str(path)))
 
+    elif "private" in listdir(path) or "public" in listdir(path):
+        raise ValueError("Path {} points to a folder, that already contains keys")
+    
+    mkdir(path / "private")
+    context.save(path / "private")
 
-#   TODO: Use neuralpy methods here
-def load_context(path: Path) -> ts.Context:
+    context_copy = ContextAndKeys(
+        context=context.context,
+        private_key=None,
+        public_key=context.public_key
+    )
+    mkdir(path / "public")
+    context_copy.save(path / "public")
+
+def load_context(path: Path) -> ContextAndKeys:
     """Loads a TenSEAL context from specified file.
 
     Args:
@@ -191,32 +294,31 @@ def load_context(path: Path) -> ts.Context:
     Returns:
         ts.Context: The loaded TenSEAL context.
     """
-    with open(path, "rb") as input_file:
-        return ts.Context.load(input_file.read())
+    context_and_keys = ContextAndKeys.load(path)
+
+    return context_and_keys
 
 
-#   TODO: Use neuralpy methods here
-def save_vector(vector: ts.CKKSVector, path: Path) -> None:
+def save_vector(vector: neuralpy.Ciphertext, path: Path) -> None:
     """Saves a CKKS vector into the specified file.
 
     Args:
-        vector (ts.CKKSVector): The vector to be saved.
+        vector (neuralpy.Ciphertext): The vector to be saved.
         path (Path): Path for storing the vector.
     """
-    with open(path, "wb") as output_file:
-        output_file.write(vector.serialize())
+    vector.save(str(path))
 
 
-#   TODO: Use neuralpy methods here
-def load_vector(context: ts.Context, path: Path) -> ts.CKKSVector:
+def load_vector(path: Path) -> neuralpy.Ciphertext:
     """Loads a CKKS vector from the specified file.
 
     Args:
-        context (ts.Context): Context to be used for the loaded vector.
         path (Path): Path of the file containing the vector to load.
 
     Returns:
-        ts.CKKSVector: The loaded vector.
+        neuralpy.Ciphertext: The loaded vector.
     """
-    with open(path, "rb") as input_file:
-        return ts.ckks_vector_from(context, input_file.read())
+    vector = neuralpy.Ciphertext()
+    vector.load(str(path))
+
+    return vector
