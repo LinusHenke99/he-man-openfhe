@@ -775,8 +775,7 @@ class ONNXModel:
         def execute(self, state: Dict[str, Union[neuralpy.Ciphertext, np.ndarray]]) -> None:
             a = _unwrap_scalar(state[self.inputs[0]])
             b = _unwrap_scalar(state[self.inputs[1]])
-            print(type(a))
-            print(type(b))
+
             if any(isinstance(x, neuralpy.Ciphertext) for x in (a, b)):
                 try:
                     context = neuralpy.GetContext(b)

@@ -117,6 +117,7 @@ def test_inference(tmp_path):
                 f" @ {model_filename}"
             )
             assert np.allclose(y, y2.reshape(y.shape), atol=2e-7, rtol=1e-4)
+            print("Inference passed.")
 
     finally:
         # delete calibrated model

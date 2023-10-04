@@ -136,3 +136,5 @@ data/MNIST/
 
 # PyCharm
 .idea/
+
+**/dump
