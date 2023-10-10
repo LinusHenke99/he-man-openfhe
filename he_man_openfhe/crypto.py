@@ -124,6 +124,7 @@ def create_context(key_params: KeyParams) -> ContextAndKeys:
     parameters.SetSecurityLevel(neuralpy.HEStd_NotSet)
     parameters.SetBatchSize(batch_size)
     parameters.SetMultiplicativeDepth(mult_depth)
+    parameters.SetScalingTechnique(neuralpy.FLEXIBLEAUTO)
 
     context = neuralpy.MakeContext(parameters)
 
