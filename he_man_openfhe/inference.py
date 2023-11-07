@@ -1090,50 +1090,6 @@ class ONNXModel:
             pass
 
     class BatchNormalizationOperator(Operator):
-        # def __init__(self, model: "ONNXModel", node: onnx.onnx_ml_pb2.NodeProto):
-        #     super().__init__(model, node)
-        #     self.model.meta_info[self.output] = TensorMetaInfo(
-        #         multiplication_depth=(
-        #             max(i.multiplication_depth for i in self.meta_info_inputs) + 1
-        #         ),
-        #         shape=self.meta_info_inputs[0].shape,
-        #         dtype=self.meta_info_inputs[0].dtype,
-        #         can_be_encrypted=True,
-        #     )
-
-        # def execute(self, state: Dict[str, Union[neuralpy.Ciphertext, np.ndarray]]) -> None:
-        #     X = state[self.inputs[0]]
-        #     if isinstance(X, neuralpy.Ciphertext):
-        #         operator = self.create_neuralofhe_object(state)
-
-        #         Y = operator(X)
-
-        #     else:
-        #         scale = state[self.inputs[1]]
-        #         B = state[self.inputs[2]]
-        #         input_mean = state[self.inputs[3]]
-        #         input_var = state[self.inputs[4]]
-        #         epsilon = a.f if (a := self.attributes.get("epsilon")) is not None else 1e-5
-
-        #         dims_x = len(X.shape)
-        #         dim_ones = (1,) * (dims_x - 2)
-        #         scale = scale.reshape(-1, *dim_ones)
-        #         B = B.reshape(-1, *dim_ones)
-        #         input_mean = input_mean.reshape(-1, *dim_ones)
-        #         input_var = input_var.reshape(-1, *dim_ones)
-
-        #         Y = (X - input_mean) / np.sqrt(input_var + epsilon) * scale + B
-
-        #     state[self.output] = Y
-
-        # def create_neuralofhe_object(
-        #     self, state: Dict[str, Union[neuralpy.Ciphertext, np.ndarray]]
-        # ) -> neuralpy.Operator:
-        #     weights, bias = self.get_gemm_weights_and_bias(state)
-        #     batchNorm = neuralpy.BatchNorm(weights, bias)
-
-        #     return batchNorm
-
         def __init__(self, model: "ONNXModel", node: onnx.onnx_ml_pb2.NodeProto):
             super().__init__(model, node)
             self.model.meta_info[self.output] = TensorMetaInfo(
