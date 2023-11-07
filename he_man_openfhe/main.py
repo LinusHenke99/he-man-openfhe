@@ -114,10 +114,8 @@ def run_encrypt(cfg: config.EncryptConfig) -> None:
     context = crypto.load_context(cfg.key_path, operation=False)
     plaintext = np.load(cfg.plaintext_input_path)
     plaintext = list(plaintext.flat)
-    input_size = len(plaintext)
     pl = context.context.PackPlaintext(plaintext)
     ciphertext = context.context.Encrypt(pl, context.public_key)
-    ciphertext.setSlots(input_size)
     crypto.save_vector(ciphertext, cfg.ciphertext_output_path)
 
 
@@ -137,8 +135,6 @@ def run_decrypt(cfg: config.DecryptConfig) -> None:
         raise ValueError("No private key available in {}".format(str(cfg.key_path)))
 
     ciphertext = crypto.load_vector(cfg.ciphertext_input_path)
-    output_size = ciphertext.getSlots()
     plaintext = context.context.Decrypt(ciphertext, context.private_key)
-    plaintext.SetLength(output_size)
     plaintext = np.array(plaintext.GetPackedValue())
     np.save(cfg.plaintext_output_path, plaintext)

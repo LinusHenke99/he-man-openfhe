@@ -379,11 +379,15 @@ class ONNXModel:
         def output(self) -> str:
             return self.node.output[0]
 
-        def execute(self, state: Dict[str, Union[neuralpy.Ciphertext, np.ndarray]]) -> None:
+        def execute(
+            self, state: Dict[str, Union[neuralpy.Ciphertext, np.ndarray]]
+        ) -> None:
             raise NotImplementedError("TODO: Implement in derived operator classes")
 
         #   Factory for creating neuralofhe operator objects
-        def create_neuralofhe_object(self, state: Dict[str, Union[neuralpy.Ciphertext, np.ndarray]]) -> neuralpy.Operator:
+        def create_neuralofhe_object(
+            self, state: Dict[str, Union[neuralpy.Ciphertext, np.ndarray]]
+        ) -> neuralpy.Operator:
             raise NotImplementedError("TODO: Implement in derived operator classes")
 
     class GemmWrappedOperator(Operator):
@@ -526,7 +530,9 @@ class ONNXModel:
                     "may be encrypted."
                 )
 
-        def execute(self, state: Dict[str, Union[neuralpy.Ciphertext, np.ndarray]]) -> None:
+        def execute(
+            self, state: Dict[str, Union[neuralpy.Ciphertext, np.ndarray]]
+        ) -> None:
             self.assert_inputs(state)
 
             x = state[self.inputs[self.gemm_input_index]]
@@ -558,7 +564,9 @@ class ONNXModel:
                 ),
             )
 
-        def execute(self, state: Dict[str, Union[neuralpy.Ciphertext, np.ndarray]]) -> None:
+        def execute(
+            self, state: Dict[str, Union[neuralpy.Ciphertext, np.ndarray]]
+        ) -> None:
             a = _unwrap_scalar(state[self.inputs[0]])
             b = _unwrap_scalar(state[self.inputs[1]])
 
@@ -576,11 +584,15 @@ class ONNXModel:
             else:
                 state[self.output] = a + b
 
-        def create_neuralofhe_object(self, state: Dict[str, Union[neuralpy.Ciphertext, np.ndarray]]) -> neuralpy.Operator:
+        def create_neuralofhe_object(
+            self, state: Dict[str, Union[neuralpy.Ciphertext, np.ndarray]]
+        ) -> neuralpy.Operator:
             pass
 
     class AveragePoolOperator(GemmWrappedOperator):
-        def create_neuralofhe_object(self, state: Dict[str, Union[neuralpy.Ciphertext, np.ndarray]]) -> neuralpy.Operator:
+        def create_neuralofhe_object(
+            self, state: Dict[str, Union[neuralpy.Ciphertext, np.ndarray]]
+        ) -> neuralpy.Operator:
             weights, _ = self.get_gemm_weights_and_bias(state)
             averagePool = neuralpy.AveragePool(weights)
 
@@ -619,11 +631,15 @@ class ONNXModel:
 
             self.model._const_state[self.output] = self.const
 
-        def execute(self, state: Dict[str, Union[neuralpy.Ciphertext, np.ndarray]]) -> None:
+        def execute(
+            self, state: Dict[str, Union[neuralpy.Ciphertext, np.ndarray]]
+        ) -> None:
             state[self.output] = self.const
 
     class ConvOperator(GemmWrappedOperator):
-        def create_neuralofhe_object(self, state: Dict[str, Union[neuralpy.Ciphertext, np.ndarray]]) -> neuralpy.Operator:
+        def create_neuralofhe_object(
+            self, state: Dict[str, Union[neuralpy.Ciphertext, np.ndarray]]
+        ) -> neuralpy.Operator:
             weights, biases = self.get_gemm_weights_and_bias(state)
             convolution = neuralpy.Conv2D(weights, biases)
 
@@ -640,7 +656,9 @@ class ONNXModel:
                 can_be_encrypted=self.meta_info_inputs[0].can_be_encrypted,
             )
 
-        def execute(self, state: Dict[str, Union[neuralpy.Ciphertext, np.ndarray]]) -> None:
+        def execute(
+            self, state: Dict[str, Union[neuralpy.Ciphertext, np.ndarray]]
+        ) -> None:
             x = state[self.inputs[0]]
             if isinstance(x, np.ndarray):
                 axis = a.i if (a := self.attributes.get("axis")) is not None else 1
@@ -687,7 +705,9 @@ class ONNXModel:
                 ),
             )
 
-        def execute(self, state: Dict[str, Union[neuralpy.Ciphertext, np.ndarray]]) -> None:
+        def execute(
+            self, state: Dict[str, Union[neuralpy.Ciphertext, np.ndarray]]
+        ) -> None:
             a = state[self.inputs[0]]
             b = state[self.inputs[1]]
 
@@ -712,7 +732,7 @@ class ONNXModel:
                 c = state[self.inputs[2]]
                 if (attribute := self.attributes.get("beta")) is not None:
                     c = c * attribute.f
-            
+
             else:
                 c = np.zeros(b.shape[0])
 
@@ -750,8 +770,16 @@ class ONNXModel:
                 ),
             )
 
-        def execute(self, state: Dict[str, Union[neuralpy.Ciphertext, np.ndarray]]) -> None:
-            state[self.output] = state[self.inputs[0]] @ state[self.inputs[1]]
+        def execute(
+            self, state: Dict[str, Union[neuralpy.Ciphertext, np.ndarray]]
+        ) -> None:
+            if isinstance(state[self.inputs[0]], np.ndarray):
+                state[self.output] = state[self.inputs[0]] @ state[self.inputs[1]]
+            else:
+                context = neuralpy.GetContext(state[self.inputs[0]])
+                state[self.output] = context.EvalMatMul(
+                    state[self.inputs[1]], state[self.inputs[0]]
+                )
 
     class MulOperator(Operator):
         def __init__(self, model: "ONNXModel", node: onnx.onnx_ml_pb2.NodeProto):
@@ -772,7 +800,9 @@ class ONNXModel:
                 ),
             )
 
-        def execute(self, state: Dict[str, Union[neuralpy.Ciphertext, np.ndarray]]) -> None:
+        def execute(
+            self, state: Dict[str, Union[neuralpy.Ciphertext, np.ndarray]]
+        ) -> None:
             a = _unwrap_scalar(state[self.inputs[0]])
             b = _unwrap_scalar(state[self.inputs[1]])
 
@@ -790,7 +820,9 @@ class ONNXModel:
             else:
                 state[self.output] = a * b
 
-        def create_neuralofhe_object(self, state: Dict[str, Union[neuralpy.Ciphertext, np.ndarray]]) -> neuralpy.Operator:
+        def create_neuralofhe_object(
+            self, state: Dict[str, Union[neuralpy.Ciphertext, np.ndarray]]
+        ) -> neuralpy.Operator:
             pass
 
     # PadOperator would waste a multiplication if we just derive it from GemmWrapped
@@ -816,13 +848,17 @@ class ONNXModel:
                 else 1
             )
 
-        def execute(self, state: Dict[str, Union[neuralpy.Ciphertext, np.ndarray]]) -> None:
+        def execute(
+            self, state: Dict[str, Union[neuralpy.Ciphertext, np.ndarray]]
+        ) -> None:
             if all(pad == 0 for pad in self.pads):
                 state[self.output] = state[self.inputs[0]]
             else:
                 super().execute(state)
 
-        def create_neuralofhe_object(self, state: Dict[str, Union[neuralpy.Ciphertext, np.ndarray]]) -> neuralpy.Operator:
+        def create_neuralofhe_object(
+            self, state: Dict[str, Union[neuralpy.Ciphertext, np.ndarray]]
+        ) -> neuralpy.Operator:
             weights, _ = self.get_gemm_weights_and_bias(state)
             pad_operator = neuralpy.PadOperator(weights)
 
@@ -851,14 +887,11 @@ class ONNXModel:
             # plus one for the coefficient multiplication
             def get_mult_depth(degree: int) -> int:
                 if degree < 3:
-                    raise ValueError("Polynomial degree is to low, has to be at least 3.")
+                    raise ValueError(
+                        "Polynomial degree is to low, has to be at least 3."
+                    )
 
-                depths = {
-                    5: 4,
-                    13: 5,
-                    27: 6,
-                    59: 7
-                }
+                depths = {5: 4, 13: 5, 27: 6, 59: 7}
 
                 for key, value in depths.items():
                     if degree <= key:
@@ -898,7 +931,9 @@ class ONNXModel:
 
             return coeffs
 
-        def execute(self, state: Dict[str, Union[neuralpy.Ciphertext, np.ndarray]]) -> None:
+        def execute(
+            self, state: Dict[str, Union[neuralpy.Ciphertext, np.ndarray]]
+        ) -> None:
             x = state[self.inputs[0]]
 
             if self.meta_info_inputs[0].domain is not None:
@@ -919,8 +954,10 @@ class ONNXModel:
                 y = relu(x)
 
             state[self.output] = y
-        
-        def create_neuralofhe_object(self, state: Dict[str, Union[neuralpy.Ciphertext, np.ndarray]]) -> neuralpy.Operator:
+
+        def create_neuralofhe_object(
+            self, state: Dict[str, Union[neuralpy.Ciphertext, np.ndarray]]
+        ) -> neuralpy.Operator:
             domain = self.meta_info_inputs[0].domain
             lower = domain.lower_bound
             upper = domain.upper_bound
@@ -969,14 +1006,18 @@ class ONNXModel:
                 can_be_encrypted=self.meta_info_inputs[0].can_be_encrypted,
             )
 
-        def execute(self, state: Dict[str, Union[neuralpy.Ciphertext, np.ndarray]]) -> None:
+        def execute(
+            self, state: Dict[str, Union[neuralpy.Ciphertext, np.ndarray]]
+        ) -> None:
             x = state[self.inputs[0]]
             if isinstance(x, neuralpy.Ciphertext):
                 state[self.output] = x
             else:
                 state[self.output] = x.reshape(self.target_shape)
 
-        def create_neuralofhe_object(self, state: Dict[str, Union[neuralpy.Ciphertext, np.ndarray]]) -> neuralpy.Operator:
+        def create_neuralofhe_object(
+            self, state: Dict[str, Union[neuralpy.Ciphertext, np.ndarray]]
+        ) -> neuralpy.Operator:
             pass
 
     class SubOperator(Operator):
@@ -993,7 +1034,9 @@ class ONNXModel:
                 can_be_encrypted=True,
             )
 
-        def execute(self, state: Dict[str, Union[neuralpy.Ciphertext, np.ndarray]]) -> None:
+        def execute(
+            self, state: Dict[str, Union[neuralpy.Ciphertext, np.ndarray]]
+        ) -> None:
             a = _unwrap_scalar(state[self.inputs[0]])
             b = _unwrap_scalar(state[self.inputs[1]])
             if any(isinstance(x, neuralpy.Ciphertext) for x in (a, b)):
@@ -1010,7 +1053,9 @@ class ONNXModel:
             else:
                 state[self.output] = a - b
 
-        def create_neuralofhe_object(self, state: Dict[str, Union[neuralpy.Ciphertext, np.ndarray]]) -> neuralpy.Operator:
+        def create_neuralofhe_object(
+            self, state: Dict[str, Union[neuralpy.Ciphertext, np.ndarray]]
+        ) -> neuralpy.Operator:
             pass
 
     # START: CLEARTEXT ONLY ###
@@ -1029,7 +1074,9 @@ class ONNXModel:
                 can_be_encrypted=True,
             )
 
-        def execute(self, state: Dict[str, Union[neuralpy.Ciphertext, np.ndarray]]) -> None:
+        def execute(
+            self, state: Dict[str, Union[neuralpy.Ciphertext, np.ndarray]]
+        ) -> None:
             a = _unwrap_scalar(state[self.inputs[0]])
             b = _unwrap_scalar(state[self.inputs[1]])
             if any(isinstance(x, neuralpy.Ciphertext) for x in (a, b)):
@@ -1037,10 +1084,12 @@ class ONNXModel:
 
             state[self.output] = a / b
 
-        def create_neuralofhe_object(self, state: Dict[str, Union[neuralpy.Ciphertext, np.ndarray]]) -> neuralpy.Operator:
+        def create_neuralofhe_object(
+            self, state: Dict[str, Union[neuralpy.Ciphertext, np.ndarray]]
+        ) -> neuralpy.Operator:
             pass
 
-    class BatchNormalizationOperator(GemmWrappedOperator):
+    class BatchNormalizationOperator(Operator):
         # def __init__(self, model: "ONNXModel", node: onnx.onnx_ml_pb2.NodeProto):
         #     super().__init__(model, node)
         #     self.model.meta_info[self.output] = TensorMetaInfo(
@@ -1077,11 +1126,66 @@ class ONNXModel:
 
         #     state[self.output] = Y
 
-        def create_neuralofhe_object(self, state: Dict[str, Union[neuralpy.Ciphertext, np.ndarray]]) -> neuralpy.Operator:
-            weights, bias = self.get_gemm_weights_and_bias(state)
-            batchNorm = neuralpy.BatchNorm(weights, bias)
+        # def create_neuralofhe_object(
+        #     self, state: Dict[str, Union[neuralpy.Ciphertext, np.ndarray]]
+        # ) -> neuralpy.Operator:
+        #     weights, bias = self.get_gemm_weights_and_bias(state)
+        #     batchNorm = neuralpy.BatchNorm(weights, bias)
 
-            return batchNorm
+        #     return batchNorm
+
+        def __init__(self, model: "ONNXModel", node: onnx.onnx_ml_pb2.NodeProto):
+            super().__init__(model, node)
+            self.model.meta_info[self.output] = TensorMetaInfo(
+                multiplication_depth=(
+                    max(i.multiplication_depth for i in self.meta_info_inputs) + 1
+                ),
+                shape=self.meta_info_inputs[0].shape,
+                dtype=self.meta_info_inputs[0].dtype,
+                can_be_encrypted=self.meta_info_inputs[0].can_be_encrypted,
+            )
+
+        def execute(
+            self, state: Dict[str, Union[neuralpy.Ciphertext, np.ndarray]]
+        ) -> None:
+            X = state[self.inputs[0]]
+            scale = state[self.inputs[1]]
+            beta = state[self.inputs[2]]
+            input_mean = state[self.inputs[3]]
+            input_var = state[self.inputs[4]]
+            epsilon = a.f if (a := self.attributes.get("epsilon")) is not None else 1e-5
+
+            w = scale / np.sqrt(input_var + epsilon)
+            b = beta - input_mean * w
+
+            if isinstance(X, neuralpy.Ciphertext):
+                input_shape = self.meta_info_inputs[0].shape
+                # values are repeated across batches
+                # e.g. [1,2,3] -> [1,2,3,1,2,3] for 2 batches with 3 values
+                w = np.tile(w, input_shape[0])
+                b = np.tile(b, input_shape[0])
+
+                # <n>-dimensional case
+                if len(input_shape) > 2:
+                    # values are repeated within one channel
+                    # e.g. np.tile turns [1,2] into [1,2,1,2] for 2 batches
+                    # now, [1,2,1,2] -> [1,1,1,1,2,2,2,2,1,1,1,1,2,2,2,2]
+                    # for 2 channels with 2x2 image
+                    w = np.repeat(w, np.prod(input_shape[2:]))
+                    b = np.repeat(b, np.prod(input_shape[2:]))
+
+                bn_operator = neuralpy.BatchNorm(w, b)
+
+            else:
+                dims_x = len(X.shape)
+                additional_dims = (1,) * (dims_x - 2)
+                w = w.reshape(-1, *additional_dims)
+                b = b.reshape(-1, *additional_dims)
+
+                def bn_operator(x: np.ndarray) -> np.ndarray:
+                    return x * w + b
+
+            state[self.output] = bn_operator(X)
 
 
 def _unwrap_scalar(x: Any) -> Any:
