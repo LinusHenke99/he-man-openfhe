@@ -1,9 +1,9 @@
 import json
 import os
 
-from he_man_tenseal.config import KeyGenConfig
-from he_man_tenseal.crypto import load_context
-from he_man_tenseal.main import run_keygen
+from he_man_openfhe.config import KeyGenConfig
+from he_man_openfhe.crypto import load_context
+from he_man_openfhe.main import run_keygen
 
 
 
@@ -11,7 +11,7 @@ from he_man_tenseal.main import run_keygen
 def test_keygen(tmp_path):
     key_params_path = tmp_path / "keyparams.json"
     key_params_obj = {
-        "library": "seal",
+        "library": "OpenFHE",
         "parameters": {
             "poly_modulus_degree": 4096,
             "coeff_mod_bit_sizes": [31, 23, 23, 31],

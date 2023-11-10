@@ -6,9 +6,9 @@ from test_definitions import (
     MODEL_DIR,
 )
 
-from he_man_tenseal.config import KeyParamsConfig
-from he_man_tenseal.crypto import find_optimal_parameters
-from he_man_tenseal.inference import ONNXModel
+from he_man_openfhe.config import KeyParamsConfig
+from he_man_openfhe.crypto import find_optimal_parameters
+from he_man_openfhe.inference import ONNXModel
 
 
 @pytest.mark.parametrize(
