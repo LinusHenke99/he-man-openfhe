@@ -27,7 +27,7 @@ def config_args(cfg_class: BaseSettings) -> Callable:
 @click.option("-v", "--verbose", count=True, help="set the verbosity, can be repeated")
 @logger.catch
 def command_line(verbose: int) -> None:
-    """A CLI tool for model inference with TenSEAL"""
+    """A CLI tool for model inference with OpenFHE"""
     logger.remove()
     logger.add(
         sys.stderr,
@@ -95,7 +95,6 @@ def decrypt(**kwargs: Any) -> None:
         raise click.ClickException(str(e))
 
 
-#   Does probably not require changes
 def run_keyparams(cfg: config.KeyParamsConfig) -> None:
     model = ONNXModel(cfg.model_path, cfg)
     key_params = crypto.find_optimal_parameters(cfg, model)
@@ -103,7 +102,6 @@ def run_keyparams(cfg: config.KeyParamsConfig) -> None:
     model.save_calibrated_model()
 
 
-#   Does probably not require changes
 def run_keygen(cfg: config.KeyGenConfig) -> None:
     key_params = crypto.KeyParams.load(cfg.key_params_path)
     context = crypto.create_context(key_params)
@@ -119,7 +117,6 @@ def run_encrypt(cfg: config.EncryptConfig) -> None:
     crypto.save_vector(ciphertext, cfg.ciphertext_output_path)
 
 
-#   TODO:   Context deserialization needs to be handled here
 def run_inference(cfg: config.InferenceConfig) -> None:
     model = ONNXModel(cfg.model_path)
     context = crypto.load_context(cfg.key_path)

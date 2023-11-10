@@ -3,9 +3,9 @@ from pathlib import Path
 
 import numpy as np
 
-import he_man_tenseal.crypto as crypto
-from he_man_tenseal.config import KeyParamsConfig
-from he_man_tenseal.inference import ONNXModel
+import he_man_openfhe.crypto as crypto
+from he_man_openfhe.config import KeyParamsConfig
+from he_man_openfhe.inference import ONNXModel
 
 EVAL_DIR = Path(__file__).parent
 

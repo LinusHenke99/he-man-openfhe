@@ -286,13 +286,13 @@ def save_context(context: ContextAndKeys, path: Path) -> None:
     context_copy.save(path / "public")
 
 def load_context(path: Path, operation: bool = True) -> ContextAndKeys:
-    """Loads a TenSEAL context from specified file.
+    """Loads an OpenFHE context from specified file.
 
     Args:
-        path (Path): Path of the context file to load.
+        path (Path): Path of the folder containing the context files.
 
     Returns:
-        ts.Context: The loaded TenSEAL context.
+        ts.Context: The loaded ContextAndKeys object containing all necessary objects
     """
     context_and_keys = ContextAndKeys.load(path, operation=operation)
 
