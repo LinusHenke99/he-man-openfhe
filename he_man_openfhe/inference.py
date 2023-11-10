@@ -63,7 +63,6 @@ class TensorMetaInfo:
     domain: Optional[Interval] = None
 
 
-#   TODO:   Change tenseal specific code, and add bridge between onnx and neuralofhe
 class ONNXModel:
     def __init__(
         self,
@@ -192,7 +191,6 @@ class ONNXModel:
         state = self._forward(*inputs)
         return [state[output.name] for output in self.outputs]
 
-    #   TODO:   Needs to be changed for OpenFHE inference session.
     def _forward(
         self, *inputs: List[Union[neuralpy.Ciphertext, np.ndarray]]
     ) -> Dict[str, Union[neuralpy.Ciphertext, np.ndarray]]:
@@ -384,7 +382,8 @@ class ONNXModel:
         ) -> None:
             raise NotImplementedError("TODO: Implement in derived operator classes")
 
-        #   Factory for creating neuralofhe operator objects
+        #   Factory for creating neuralofhe operator objects. These objects are callable
+        #   and represent applying the operation
         def create_neuralofhe_object(
             self, state: Dict[str, Union[neuralpy.Ciphertext, np.ndarray]]
         ) -> neuralpy.Operator:
@@ -747,7 +746,6 @@ class ONNXModel:
 
             state[self.output] = result
 
-    #   TODO
     class MatMulOperator(Operator):
         def __init__(self, model: "ONNXModel", node: onnx.onnx_ml_pb2.NodeProto):
             super().__init__(model, node)

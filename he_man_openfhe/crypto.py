@@ -26,6 +26,7 @@ _MAX_BIT_SIZE_SUM_BY_POLY_MODULUS_DEGREE = {
     32768: 881,
 }
 
+# enum class that represents all keys that can be loaded into He-Man
 class Loadables(Enum):
     privKey = "privateKey"
     pubKey = "publicKey"
@@ -33,21 +34,20 @@ class Loadables(Enum):
     multKey = "multKeys"
     rotKey = "rotKeys"
 
+# files required for either a private or public context
 _FILE_SETS = {
     "private": set([loadable.value for loadable in Loadables]),
     "public": set([loadable.value for loadable in Loadables if not loadable == Loadables.privKey])
 }
 
 
-#   This will not be changed, since OpenFHE parameters can be extracted from Tenseal parameters.
-#   OpenFHE implementation will be implemented for context factory
 @dataclass
 class KeyParams:
     poly_modulus_degree: int
     coeff_mod_bit_sizes: List[int]
 
     def save(self, path: Path) -> None:
-        obj = {"library": "seal", "parameters": dataclasses.asdict(self)}
+        obj = {"library": "OpenFHE", "parameters": dataclasses.asdict(self)}
         with open(path, "w") as output_file:
             json.dump(obj, output_file)
 
@@ -58,6 +58,7 @@ class KeyParams:
         return KeyParams(**obj["parameters"])
     
 
+# Dataclass to manage keys and serialization of keys similar to Tenseal
 @dataclass
 class ContextAndKeys:
     context: neuralpy.Context
@@ -147,7 +148,6 @@ def create_context(key_params: KeyParams) -> ContextAndKeys:
     return context_struct
 
 
-#   TODO:   Might need tweaking in order to fit OpenFHE standards
 def find_min_poly_modulus_degree(cfg: KeyParamsConfig, model: ONNXModel) -> int:
     """Finds the minimal possible poly modulus degree for the given keyparameter config.
 
@@ -182,7 +182,6 @@ def find_min_poly_modulus_degree(cfg: KeyParamsConfig, model: ONNXModel) -> int:
     return poly_modulus_degree
 
 
-#   TODO:   Tweaking
 def find_max_precision(
     cfg: KeyParamsConfig, model: ONNXModel, poly_modulus_degree: int
 ) -> Tuple[int, int]:
