@@ -33,6 +33,7 @@ class Loadables(Enum):
     context = "context"
     multKey = "multKeys"
     rotKey = "rotKeys"
+    outputSize = "outputSize"
 
 # files required for either a private or public context
 _FILE_SETS = {
@@ -45,6 +46,7 @@ _FILE_SETS = {
 class KeyParams:
     poly_modulus_degree: int
     coeff_mod_bit_sizes: List[int]
+    output_size: int
 
     def save(self, path: Path) -> None:
         obj = {"library": "OpenFHE", "parameters": dataclasses.asdict(self)}
@@ -64,12 +66,16 @@ class ContextAndKeys:
     context: neuralpy.Context
     private_key: neuralpy.PrivateKey
     public_key: neuralpy.PublicKey
+    output_size: int
 
     def save(self, path: Path) -> None:
         self.context.save(str(path / Loadables.context.value))
         self.context.saveMultKeys(str(path / Loadables.multKey.value))
         self.context.saveRotKeys(str(path / Loadables.rotKey.value))
         self.public_key.save(str(path / Loadables.pubKey.value))
+        
+        with open(path / Loadables.outputSize.value, "w") as f:
+            f.write(str(self.output_size))
 
         if self.private_key:
             self.private_key.save(str(path / Loadables.privKey.value))
@@ -103,10 +109,15 @@ class ContextAndKeys:
         publicKey = neuralpy.PublicKey()
         publicKey.load(str(path / Loadables.pubKey.value))
 
+        with open(path / Loadables.outputSize.value) as f:
+            output_size = f.read().replace("\n", "")
+            output_size = int(output_size)
+
         context_with_keys = ContextAndKeys(
             context=context,
             private_key=privateKey,
-            public_key=publicKey
+            public_key=publicKey,
+            output_size=output_size
         )
 
         return context_with_keys
@@ -139,10 +150,13 @@ def create_context(key_params: KeyParams) -> ContextAndKeys:
     context.EvalMultKeyGen(keypair.privateKey)
     context.GenRotateKeys(keypair.privateKey)
 
+    output_size = key_params.output_size
+
     context_struct = ContextAndKeys(
         context=context,
         private_key=keypair.privateKey,
-        public_key=keypair.publicKey
+        public_key=keypair.publicKey,
+        output_size=output_size
     )
 
     return context_struct
@@ -255,7 +269,9 @@ def find_optimal_parameters(cfg: KeyParamsConfig, model: ONNXModel) -> KeyParams
         + [n_bits_fractional_precision + n_bits_int_precision]
     )
 
-    return KeyParams(poly_modulus_degree, coeff_mod_bit_sizes)
+    output_size = model._output_dim
+
+    return KeyParams(poly_modulus_degree, coeff_mod_bit_sizes, output_size)
 
 def save_context(context: ContextAndKeys, path: Path) -> None:
     """ Creates two folders in the path, a private and a public folder, where all
@@ -280,7 +296,8 @@ def save_context(context: ContextAndKeys, path: Path) -> None:
     context_copy = ContextAndKeys(
         context=context.context,
         private_key=None,
-        public_key=context.public_key
+        public_key=context.public_key,
+        output_size=context.output_size
     )
     mkdir(path / "public")
     context_copy.save(path / "public")
