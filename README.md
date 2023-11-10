@@ -2,7 +2,8 @@
 ![Architecture](img/architecture.PNG)
 
 ## setup
-- create a virtual env
+- create a virtual env and activate it
+- install [OpenFHEPy](https://github.com/LinusHenke99/OpenFHEPy) into the virtual environment
 - install project dependencies: `pip install .`
 
 ## usage
