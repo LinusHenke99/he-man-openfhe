@@ -83,10 +83,10 @@ class ContextAndKeys:
     @staticmethod
     def load(path: Path, operation: bool = True) -> "ContextAndKeys":
         if not path.exists():
-            raise ValueError("Path {} does not exist".format(str(path)))
+            raise ValueError(f"Path {str(path)} does not exist")
 
         elif not isdir(path):
-            raise ValueError("Path {} does not point to a directory.".format(str(path)))
+            raise ValueError(f"Path {str(path)} does not point to a directory.")
 
         dirlist = listdir(path)
 
@@ -121,6 +121,24 @@ class ContextAndKeys:
         )
 
         return context_with_keys
+
+    def has_secret_key(self):
+        if self.private_key:
+            return True
+        else:
+            return False
+
+    def has_public_key(self):
+        if self.public_key:
+            return True
+        else:
+            return False
+
+    def has_relin_keys(self):
+        return self.context.hasRelinKeys()
+
+    def has_galois_keys(self):
+        return self.context.hasGaloisKeys()
 
 def create_context(key_params: KeyParams) -> ContextAndKeys:
     first_mod_size = key_params.coeff_mod_bit_sizes[0]
