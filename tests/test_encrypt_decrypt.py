@@ -17,7 +17,7 @@ def test_encrypt_decrypt(tmp_path):
     model_path = model_dir / "depth1.onnx"
     calibration_data_dir = Path(__file__).parent / "calibration-data"
     key_params_path = tmp_path / "keyparams.json"
-    key_path = tmp_path / "key"
+    key_path = tmp_path / "private"
     plaintext_input_path = tmp_path / "plaintext.npy"
     ciphertext_path = tmp_path / "ciphertext.enc"
     plaintext_output_path = tmp_path / "plaintext2.npy"
@@ -37,7 +37,7 @@ def test_encrypt_decrypt(tmp_path):
     run_keygen(
         KeyGenConfig(
             key_params_path=key_params_path,
-            secret_key_path=key_path,
+            secret_key_path=tmp_path,
         )
     )
 
@@ -77,7 +77,8 @@ def test_encrypt_with_evaluation_key(tmp_path):
     model_path = model_dir / "depth1.onnx"
     calibration_data_dir = Path(__file__).parent / "calibration-data"
     key_params_path = tmp_path / "keyparams.json"
-    key_path = tmp_path / "key"
+    key_path = tmp_path / "private"
+    pub_key_path = tmp_path / "public"
     plaintext_input_path = tmp_path / "plaintext.npy"
     ciphertext_path = tmp_path / "ciphertext.enc"
     plaintext_output_path = tmp_path / "plaintext2.npy"
@@ -97,7 +98,7 @@ def test_encrypt_with_evaluation_key(tmp_path):
     run_keygen(
         KeyGenConfig(
             key_params_path=key_params_path,
-            secret_key_path=key_path,
+            secret_key_path=tmp_path,
         )
     )
 
@@ -106,7 +107,7 @@ def test_encrypt_with_evaluation_key(tmp_path):
 
     run_encrypt(
         EncryptConfig(
-            key_path=Path(f"{key_path}.pub"),
+            key_path=pub_key_path,
             plaintext_input_path=plaintext_input_path,
             ciphertext_output_path=ciphertext_path,
         )
