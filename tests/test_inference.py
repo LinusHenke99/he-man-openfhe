@@ -33,8 +33,8 @@ from he_man_openfhe.main import (
 def test_inference(tmp_path):
     try:
         # generate keys
-        secret_key_path = tmp_path / "key"
-        evaluation_key_path = Path(f"{secret_key_path}.pub")
+        secret_key_path = tmp_path / "private"
+        evaluation_key_path = tmp_path / "public"
 
         # note: a depth 2 key is sufficient for all test models
         key_params_path = tmp_path / "keyparams.json"
@@ -53,7 +53,7 @@ def test_inference(tmp_path):
         run_keygen(
             KeyGenConfig(
                 key_params_path=key_params_path,
-                secret_key_path=secret_key_path,
+                secret_key_path=tmp_path,
             )
         )
 
