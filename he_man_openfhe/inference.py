@@ -826,6 +826,9 @@ class ONNXModel:
     # PadOperator would waste a multiplication if we just derive it from GemmWrapped
     # without overwriting init_multiplication_depth and execute
     class PadOperator(GemmWrappedOperator):
+        def __init__(self, model: "ONNXModel", node: onnx.onnx_ml_pb2.NodeProto):
+            super().__init__(model, node)
+
         def init_output_shape(self) -> None:
             pads = self.model._const_state.get(self.inputs[1])
             if pads is None:
@@ -857,8 +860,8 @@ class ONNXModel:
         def create_neuralofhe_object(
             self, state: Dict[str, Union[neuralpy.Ciphertext, np.ndarray]]
         ) -> neuralpy.Operator:
-            weights, _ = self.get_gemm_weights_and_bias(state)
-            pad_operator = neuralpy.PadOperator(weights)
+            weights, bias = self.get_gemm_weights_and_bias(state)
+            pad_operator = neuralpy.PadOperator(weights, bias)
 
             return pad_operator
 
