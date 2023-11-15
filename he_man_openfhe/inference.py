@@ -21,24 +21,6 @@ import neuralpy
 OPSET_VERSION = 14
 
 
-def get_output_shapes(onnx_model: onnx.onnx_ml_pb2.ModelProto) -> int:
-    # Get the model's outputs
-    outputs = onnx_model.graph.output
-    
-    # Extract and store the shapes of the outputs
-    output_shapes = []
-    for output in outputs:
-        shape = [dim.dim_value for dim in output.type.tensor_type.shape.dim]
-        output_shapes.append(tuple(shape))
-
-    dim = 1
-    for dims in output_shapes[0]:
-        if not dims == 0:
-            dim *= dims
-    
-    return dim
-
-
 @dataclass
 class Interval:
     lower_bound: float
@@ -96,8 +78,6 @@ class ONNXModel:
             initializer.name: numpy_helper.to_array(initializer)
             for initializer in self.initializers
         }
-
-        self._output_dim = get_output_shapes(self._model)
 
         self.relu_mode: Optional[str] = ""
         if key_params_config is not None:
