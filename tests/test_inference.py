@@ -171,78 +171,80 @@ def test_int_precision(keyparams_cfg, n_bits_integer_precision):
 
 
 def test_mnist_relu_inference(tmp_path):
-    # generate keys
-    secret_key_path = tmp_path / "key"
-    evaluation_key_path = Path(f"{secret_key_path}.pub")
+    try:
+        # generate keys
+        secret_key_path = tmp_path / "private"
+        evaluation_key_path = tmp_path / "public"
 
-    model_path = APPROXIMATED_MODELS_DIR / "mnist_small_relu.onnx"
-    calibrated_model_path = model_path.parent / (
-        model_path.stem + "_calibrated" + model_path.suffix
-    )
-
-    key_params_path = tmp_path / "keyparams.json"
-    run_keyparams(
-        KeyParamsConfig(
-            key_params_path=key_params_path,
-            model_path=model_path,
-            n_bits_fractional_precision=22,
-            calibration_data_path=CALIBRATION_DATA_DIR / "mnist_28x28.zip",
-            relu_mode="deg3",
-            domain_mode="min-max",
+        model_path = APPROXIMATED_MODELS_DIR / "mnist_small_relu.onnx"
+        calibrated_model_path = model_path.parent / (
+            model_path.stem + "_calibrated" + model_path.suffix
         )
-    )
 
-    run_keygen(
-        KeyGenConfig(
-            key_params_path=key_params_path,
-            secret_key_path=secret_key_path,
+        key_params_path = tmp_path / "keyparams.json"
+        run_keyparams(
+            KeyParamsConfig(
+                key_params_path=key_params_path,
+                model_path=model_path,
+                n_bits_fractional_precision=22,
+                calibration_data_path=CALIBRATION_DATA_DIR / "mnist_28x28.zip",
+                relu_mode="deg3",
+                domain_mode="min-max",
+            )
         )
-    )
 
-    model = onnx.load(calibrated_model_path)
-
-    plaintext_input_path = INPUTS_DIR / "mnist_28x28_7.npy"
-    x = np.load(plaintext_input_path)
-
-    # evaluate plaintext model
-    session = onnxruntime.InferenceSession(str(calibrated_model_path))
-    y = session.run(None, {model.graph.input[0].name: x})[0]
-
-    # encrypt input
-    ciphertext_input_path = tmp_path / "input.enc"
-    run_encrypt(
-        EncryptConfig(
-            key_path=secret_key_path,
-            plaintext_input_path=plaintext_input_path,
-            ciphertext_output_path=ciphertext_input_path,
+        run_keygen(
+            KeyGenConfig(
+                key_params_path=key_params_path,
+                secret_key_path=tmp_path,
+            )
         )
-    )
 
-    # run encrypted inference
-    ciphertext_output_path = tmp_path / "output.enc"
-    run_inference(
-        InferenceConfig(
-            model_path=calibrated_model_path,
-            key_path=evaluation_key_path,
-            ciphertext_input_path=ciphertext_input_path,
-            ciphertext_output_path=ciphertext_output_path,
+        model = onnx.load(calibrated_model_path)
+
+        plaintext_input_path = INPUTS_DIR / "mnist_28x28_8.npy"
+        x = np.load(plaintext_input_path)
+
+        # evaluate plaintext model
+        session = onnxruntime.InferenceSession(str(calibrated_model_path))
+        y = session.run(None, {model.graph.input[0].name: x})[0]
+
+        # encrypt input
+        ciphertext_input_path = tmp_path / "input.enc"
+        run_encrypt(
+            EncryptConfig(
+                key_path=secret_key_path,
+                plaintext_input_path=plaintext_input_path,
+                ciphertext_output_path=ciphertext_input_path,
+            )
         )
-    )
 
-    # decrypt output
-    plaintext_output_path = tmp_path / "output.npy"
-    run_decrypt(
-        DecryptConfig(
-            key_path=secret_key_path,
-            ciphertext_input_path=ciphertext_output_path,
-            plaintext_output_path=plaintext_output_path,
+        # run encrypted inference
+        ciphertext_output_path = tmp_path / "output.enc"
+        run_inference(
+            InferenceConfig(
+                model_path=calibrated_model_path,
+                key_path=evaluation_key_path,
+                ciphertext_input_path=ciphertext_input_path,
+                ciphertext_output_path=ciphertext_output_path,
+            )
         )
-    )
 
-    # check result
-    y2 = np.load(plaintext_output_path)
-    assert np.argmax(y) == np.argmax(y2)
+        # decrypt output
+        plaintext_output_path = tmp_path / "output.npy"
+        run_decrypt(
+            DecryptConfig(
+                key_path=secret_key_path,
+                ciphertext_input_path=ciphertext_output_path,
+                plaintext_output_path=plaintext_output_path,
+            )
+        )
 
-    # delete calibrated model
-    if calibrated_model_path.exists():
-        os.remove(calibrated_model_path)
+        # check result
+        y2 = np.load(plaintext_output_path)
+        assert np.argmax(y) == np.argmax(y2)
+
+    finally:
+        # delete calibrated model
+        if calibrated_model_path.exists():
+            os.remove(calibrated_model_path)
