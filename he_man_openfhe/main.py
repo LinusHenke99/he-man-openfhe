@@ -110,10 +110,9 @@ def run_keygen(cfg: config.KeyGenConfig) -> None:
 
 def run_encrypt(cfg: config.EncryptConfig) -> None:
     context = crypto.load_context(cfg.key_path, operation=False)
-    plaintext = np.load(cfg.plaintext_input_path)
-    plaintext = list(plaintext.flat)
-    pl = context.context.PackPlaintext(plaintext)
-    ciphertext = context.context.Encrypt(pl, context.public_key)
+    plaintext = list(np.load(cfg.plaintext_input_path).flat)
+
+    ciphertext = context.context.Encrypt(plaintext, context.public_key)
     crypto.save_vector(ciphertext, cfg.ciphertext_output_path)
 
 
