@@ -132,5 +132,5 @@ def run_decrypt(cfg: config.DecryptConfig) -> None:
 
     ciphertext = crypto.load_vector(cfg.ciphertext_input_path)
     plaintext = context.context.Decrypt(ciphertext, context.private_key)
-    plaintext = np.array(plaintext.GetPackedValue())
+    plaintext = np.array(plaintext)
     np.save(cfg.plaintext_output_path, plaintext)

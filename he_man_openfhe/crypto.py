@@ -149,7 +149,7 @@ def create_context(key_params: KeyParams) -> ContextAndKeys:
 
     context.Enable(neuralpy.PKE)
     context.Enable(neuralpy.LEVELEDSHE)
-    context.Enable(neuralpy.KEYSWITCH)
+    # context.Enable(neuralpy.KEYSWITCH)
     context.Enable(neuralpy.ADVANCEDSHE)
 
     keypair = context.KeyGen()
