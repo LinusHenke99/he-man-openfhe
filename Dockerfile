@@ -1,8 +1,8 @@
-FROM ubuntu:20.04
+FROM ubuntu:22.04
 
 ARG repository="openfhe-development"
 ARG branch=main
-ARG tag=v0.9.1
+ARG tag=v1.0.3
 ARG CC_param=/usr/bin/gcc-10
 ARG CXX_param=/usr/bin/g++-10
 ARG no_threads=1
@@ -11,24 +11,47 @@ ENV DEBIAN_FRONTEND=noninteractive
 ENV CC $CC_param
 ENV CXX $CXX_param
 
+WORKDIR /app
+
 #install pre-requisites for OpenFHE
 RUN apt update && apt install -y git \
                                  build-essential \
                                  gcc-10 \
                                  g++-10 \
-                                 cmake \
                                  autoconf \
-                                 clang-10 \
+                                 clang-11 \
                                  libomp5 \
                                  libomp-dev \
                                  doxygen \
                                  graphviz \
-                                 libboost-all-dev=1.71.0.0ubuntu2
+                                 libboost-all-dev \
+                                 software-properties-common \
+                                 lsb-release \
+                                 python3 \
+                                 python3-pip \
+                                 pybind11-dev
 
 RUN apt-get clean && rm -rf /var/lib/apt/lists/*
+RUN pip install cmake
 
 #git clone the openfhe-development repository and its submodules (this always clones the most latest commit)
-RUN git clone https://github.com/openfheorg/$repository.git && cd $repository && git checkout $branch && git checkout $tag && git submodule sync --recursive && git submodule update --init  --recursive
+RUN git clone https://github.com/openfheorg/$repository.git /$repository && cd /$repository && git checkout $branch && git checkout $tag && git submodule sync --recursive && git submodule update --init  --recursive
 
-#installing OpenFHE and running tests
-RUN mkdir /$repository/build && cd /$repository/build && cmake .. && make -j $no_threads && make install && make testall
+#installing OpenFHE
+RUN mkdir /$repository/build && cd /$repository/build && cmake .. && make -j $no_threads && make install
+
+RUN git clone https://github.com/LinusHenke99/OpenFHEPy.git /OpenFHEPy
+RUN cd /OpenFHEPy && mkdir /OpenFHEPy/build && cd /OpenFHEPy/build && cmake .. && make -j $no_threads && make install
+
+RUN ldconfig
+
+RUN pip install --upgrade pip
+
+COPY he_man_openfhe/ /app/he_man_openfhe
+COPY setup.py /app
+COPY pyproject.toml /app
+COPY setup.cfg /app
+
+RUN cd /app && pip install .
+
+ENTRYPOINT ["he-man-openfhe"]
