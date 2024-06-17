@@ -40,18 +40,21 @@ RUN git clone https://github.com/openfheorg/$repository.git /$repository && cd /
 #installing OpenFHE
 RUN mkdir /$repository/build && cd /$repository/build && cmake .. && make -j $no_threads && make install
 
+#intalling C++ library for ML inference
 RUN git clone https://github.com/LinusHenke99/OpenFHEPy.git /OpenFHEPy
 RUN cd /OpenFHEPy && mkdir /OpenFHEPy/build && cd /OpenFHEPy/build && cmake .. && make -j $no_threads && make install
 
+#reloading linker cache
 RUN ldconfig
 
-RUN pip install --upgrade pip
-
+#copying he-man-openfhe
 COPY he_man_openfhe/ /app/he_man_openfhe
 COPY setup.py /app
 COPY pyproject.toml /app
 COPY setup.cfg /app
 
-RUN cd /app && pip install .
+#installing he-man-openfhe
+RUN pip install .
 
+#exposing he-man-openfhe as an entrypoint
 ENTRYPOINT ["he-man-openfhe"]
