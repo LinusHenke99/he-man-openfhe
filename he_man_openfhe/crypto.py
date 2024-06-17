@@ -137,13 +137,13 @@ def create_context(key_params: KeyParams) -> ContextAndKeys:
     batch_size = key_params.poly_modulus_degree // 2
 
     parameters = neuralpy.Parameters()
-    parameters.SetRingDim(ring_dim)
     parameters.SetScalingModSize(mod_size)
+    parameters.SetRingDim(ring_dim)
     parameters.SetFirstModSize(first_mod_size)
-    parameters.SetSecurityLevel(neuralpy.HEStd_NotSet)
+    parameters.SetSecurityLevel(neuralpy.HEStd_128_classic)
     parameters.SetBatchSize(batch_size)
     parameters.SetMultiplicativeDepth(mult_depth)
-    parameters.SetScalingTechnique(neuralpy.FLEXIBLEAUTO)
+    parameters.SetScalingTechnique(neuralpy.FIXEDAUTO)
 
     context = neuralpy.MakeContext(parameters)
 
@@ -180,6 +180,7 @@ def find_min_poly_modulus_degree(cfg: KeyParamsConfig, model: ONNXModel) -> int:
         2 * model.n_bits_integer_precision
         + (model.multiplication_depth + 2) * cfg.n_bits_fractional_precision
     )
+
     logger.trace(f"minimum bit size sum is {min_bit_size_sum}")
 
     if min_bit_size_sum > max(_MAX_BIT_SIZE_SUM_BY_POLY_MODULUS_DEGREE.values()):
@@ -192,6 +193,7 @@ def find_min_poly_modulus_degree(cfg: KeyParamsConfig, model: ONNXModel) -> int:
         for n, s in _MAX_BIT_SIZE_SUM_BY_POLY_MODULUS_DEGREE.items()
         if s >= min_bit_size_sum and n >= 2 * model.max_encrypted_size
     )
+
     logger.trace(
         f"poly_modulus_degree {poly_modulus_degree} selected "
         f"(max_bit_size_sum = {max_bit_size_sum})"
