@@ -7,6 +7,9 @@ ARG CC_param=/usr/bin/gcc-10
 ARG CXX_param=/usr/bin/g++-10
 ARG no_threads=1
 
+ARG openfhe_py_branch="main"
+ARG openfhe_py_version_hash="7e8913f140a92ca4969b3a5fc4c972628988b68b"
+
 ENV DEBIAN_FRONTEND=noninteractive
 ENV CC $CC_param
 ENV CXX $CXX_param
@@ -40,9 +43,9 @@ RUN git clone https://github.com/openfheorg/$repository.git /$repository && cd /
 #installing OpenFHE
 RUN mkdir /$repository/build && cd /$repository/build && cmake .. && make -j $no_threads && make install
 
-#intalling C++ library for ML inference
+#intalling C++ Python module for ML inference
 RUN git clone https://github.com/LinusHenke99/OpenFHEPy.git /OpenFHEPy
-RUN cd /OpenFHEPy && mkdir /OpenFHEPy/build && cd /OpenFHEPy/build && cmake .. && make -j $no_threads && make install
+RUN cd /OpenFHEPy && git checkout ${openfhe_py_branch} && git checkout ${openfhe_py_version_hash} && mkdir /OpenFHEPy/build && cd /OpenFHEPy/build && cmake .. && make -j $no_threads && make install
 
 #reloading linker cache
 RUN ldconfig
