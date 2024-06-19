@@ -133,12 +133,12 @@ def create_context(key_params: KeyParams) -> ContextAndKeys:
     first_mod_size = key_params.coeff_mod_bit_sizes[0]
     mod_size = key_params.coeff_mod_bit_sizes[1]
     mult_depth = len(key_params.coeff_mod_bit_sizes) - 2
-    ring_dim = key_params.poly_modulus_degree
+    # ring_dim = key_params.poly_modulus_degree
     batch_size = key_params.poly_modulus_degree // 2
 
     parameters = neuralpy.Parameters()
     parameters.SetScalingModSize(mod_size)
-    parameters.SetRingDim(ring_dim)
+    # parameters.SetRingDim(ring_dim)
     parameters.SetFirstModSize(first_mod_size)
     parameters.SetSecurityLevel(neuralpy.HEStd_128_classic)
     parameters.SetBatchSize(batch_size)
