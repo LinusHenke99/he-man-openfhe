@@ -1,7 +1,7 @@
 # he-man-openfhe
 ![Architecture](img/architecture.PNG)
 
-![https://img.shields.io/badge/Version-0.1-blue]
+![Version](https://img.shields.io/badge/Version-0.1-blue)
 
 ## setup
 - create a virtual env and activate it
